@@ -1,62 +1,94 @@
 # Site Scraper Toolkit
 
-Grab a website's pages, styling, and structure for design reference — so you can rebuild or customize it to match a client's brief.
+```
+ ____ ___ _____ _____   ____   ____ ____      _    ____  _____ ____
+/ ___|_ _|_   _| ____| / ___| / ___|  _ \    / \  |  _ \| ____|  _ \
+\___ \| |  | | |  _|   \___ \| |   | |_) |  / _ \ | |_) |  _| | |_) |
+ ___) | |  | | | |___   ___) | |___|  _ <  / ___ \|  __/| |___|  _ <
+|____/___| |_| |_____| |____/ \____|_| \_\/_/   \_\_|   |_____|_| \_\
+```
 
-Comes in two modes: a fast scraper for ordinary multi-page sites, and a browser-driven capture tool for JavaScript-heavy pages. An interactive launcher walks you through picking the right one — no command-line flags to memorize.
+Copy a site's pages, styling, and structure for design reference — so you can rebuild or customize it to match a client's brief.
 
-## Quick start
+Two scraping modes, one interactive menu. No flags to memorize.
+
+---
+
+## Quick Start
 
 ```bash
 pip install -r requirements.txt
+python -m playwright install chromium
 python scrape.py
 ```
 
-That's it. `scrape.py` asks you a few plain-English questions (which mode you want, the URL, whether it needs a login) and takes care of the rest.
+That's three commands, run once. After that, just `python scrape.py` every time.
 
-## What's included
+> **Why two install steps?** `pip install -r requirements.txt` installs the Python packages. Playwright *also* needs an actual browser binary (headless Chromium) — that's a separate ~150MB download the second command handles. This only needs to be done once.
 
-| File | What it does |
+---
+
+## What's Included
+
+```
+site-scraper/
+├── scrape.py               <- START HERE. Interactive menu.
+├── site_scraper.py         <- Quick Scrape engine
+├── full_page_capture.py    <- Full Page Capture engine
+├── requirements.txt
+└── .gitignore
+```
+
+Run `python scrape.py` and pick a mode:
+
+| Mode | Use it for |
 |---|---|
-| `scrape.py` | **Start here.** Interactive menu — pick a mode, answer a few questions, done. |
-| `site_scraper.py` | Fast scraper for regular sites. Follows internal links across pages, downloads HTML/CSS/JS/images/fonts. |
-| `full_page_capture.py` | Uses a real headless browser to load a page, run its JavaScript, and capture exactly what ends up on screen — including dynamically-loaded content. Also saves a full-page screenshot. |
+| **[1] Quick Scrape** | Regular multi-page sites — blogs, business sites, portfolios. Fast, no browser needed. |
+| **[2] Full Page Capture** | JS-driven pages, dashboards, dynamic content. Renders the page in a real headless browser and also saves a screenshot. |
 
-## Which mode do I need?
+Not sure which one? Start with Quick Scrape. If the result looks incomplete compared to what you see in your actual browser, use Full Page Capture instead.
 
-**Quick Scrape** — for most websites: blogs, business sites, portfolios, traditional multi-page sites where the HTML you get back from the server already contains the content.
+---
 
-**Full Page Capture** — for single-page apps, dashboards, or any page where Quick Scrape seems to be missing content. If a page builds part of itself with JavaScript *after* it loads (filtered lists, widgets, lazy content), this mode renders it in a real browser first so nothing gets missed.
+## Scraping a Page Behind a Login
 
-Not sure? Start with Quick Scrape — if the result looks incomplete compared to what you see in your actual browser, switch to Full Page Capture.
+Both modes support it. When `scrape.py` asks, you'll need:
 
-## Setup
+1. **The login page URL**
+2. **The field names** on that login form — not your credentials, the technical `name="..."` attribute in the HTML. Find these by right-clicking the username box on the login page → **Inspect**.
+3. **Your actual username and password** — entered securely, hidden as you type, never written to disk.
 
-```bash
+> **Use responsibly.** Only scrape sites/accounts you're authorized to access. This tool is for studying layout and structure to build something new — not for republishing someone else's content or private data as your own.
+
+---
+
+## Troubleshooting
+
+**`playwright : command not recognized` (Windows)**
+pip installed it, but it's not on your PATH. Run it through Python instead:
+```powershell
+python -m playwright install chromium
+```
+
+**`Executable doesn't exist at ...chrome-headless-shell.exe`**
+The browser binary didn't fully download. Re-run:
+```powershell
+python -m playwright install chromium
+```
+
+**`ModuleNotFoundError: No module named 'requests'` (or similar)**
+Dependencies aren't installed yet:
+```powershell
 pip install -r requirements.txt
 ```
 
-Full Page Capture also needs a headless browser binary, installed once:
+**PowerShell doesn't like my multi-line command / `\` line breaks**
+PowerShell uses a backtick `` ` `` for line continuation, not `\`. Easiest fix: just put the whole command on one line.
 
-```bash
-playwright install chromium
-```
-
-## Scraping a page behind a login
-
-Both modes support logging in first. The interactive launcher will ask:
-
-- The login page's URL
-- The `name` attribute of the username and password fields (find these by right-clicking the fields on the login page → **Inspect**, and looking for `<input name="...">`)
-- Your username and password (entered securely — hidden as you type, never saved to disk or shown on screen)
-
-> **Use responsibly.** Only scrape sites/accounts you're authorized to access — your own site, a client's staging environment, or an account where you have explicit permission. This tool is meant for studying layout and structure to build something new, not for republishing someone else's content, private data, or licensed material as your own.
-
-## Manual / advanced usage
-
-Both tools also work directly from the command line if you'd rather skip the interactive menu — run `python site_scraper.py --help` or `python full_page_capture.py --help` for the full list of flags.
+---
 
 ## Output
 
-Scraped files land in `./scraped_site/` (Quick Scrape) or `./captured_site/` (Full Page Capture), mirroring the site's folder structure. Open the saved HTML file in a browser to view the result offline.
+Results land in `./scraped_site/` (Quick Scrape) or `./captured_site/` (Full Page Capture), mirroring the site's folder structure. Open the saved HTML file in a browser to view it offline.
 
-These output folders are git-ignored by default — they're meant to be local working copies, not something you'd commit to the repo.
+These folders are git-ignored by default — they're local working copies, not meant to be committed.
