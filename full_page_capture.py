@@ -26,9 +26,11 @@ USAGE:
     Omit --login-url entirely if the page doesn't need a login.
 
 OUTPUT:
-    ./captured_site/<domain>/page.html      — final rendered HTML, paths rewritten to local files
-    ./captured_site/<domain>/screenshot.png — full-page screenshot
-    ./captured_site/<domain>/... 	         — every CSS/JS/image/font file used, in its original path structure
+    ./captured_site/<domain>/login.html            — login page (if --login-url given)
+    ./captured_site/<domain>/login_screenshot.png  — screenshot of the login page
+    ./captured_site/<domain>/page.html             — target page, final rendered HTML
+    ./captured_site/<domain>/page_screenshot.png   — screenshot of the target page
+    ./captured_site/<domain>/...                   — every CSS/JS/image/font file used, in its original path structure
 
 ETHICAL/LEGAL NOTE:
     Only use this against sites/accounts you're authorized to access. This is
@@ -89,6 +91,38 @@ def rewrite_css_urls(css_local_path, css_remote_url, saved, out_dir):
             f.write(text)
 
 
+def save_rendered_page(page, out_dir, root_netloc, saved, filename_stem):
+    """Capture the current page's HTML + screenshot, rewriting asset paths to local copies."""
+    html = page.content()
+    final_url = page.url
+
+    screenshot_path = os.path.join(out_dir, root_netloc, f"{filename_stem}_screenshot.png")
+    ensure_dir_for(screenshot_path)
+    page.screenshot(path=screenshot_path, full_page=True)
+
+    soup = BeautifulSoup(html, "html.parser")
+    page_local_path = os.path.join(out_dir, root_netloc, f"{filename_stem}.html")
+
+    for tag, attr in (("link", "href"), ("script", "src"), ("img", "src"), ("source", "src")):
+        for el in soup.find_all(tag):
+            val = el.get(attr)
+            if not val or val.startswith("data:"):
+                continue
+            abs_url = urlparse.urljoin(final_url, val).split("#")[0]
+            if abs_url in saved:
+                el[attr] = rel_path(page_local_path, saved[abs_url])
+                if tag == "link":
+                    rewrite_css_urls(saved[abs_url], abs_url, saved, out_dir)
+
+    ensure_dir_for(page_local_path)
+    with open(page_local_path, "w", encoding="utf-8", errors="ignore") as f:
+        f.write(str(soup))
+
+    print(f"[info] saved page: {page_local_path}")
+    print(f"[info] saved screenshot: {screenshot_path}")
+    return page_local_path
+
+
 def capture(start_url, out_dir, login_url, user_field, pass_field, username, password, wait_ms):
     if not PLAYWRIGHT_AVAILABLE:
         raise RuntimeError(
@@ -96,6 +130,7 @@ def capture(start_url, out_dir, login_url, user_field, pass_field, username, pas
         )
     root_netloc = urlparse.urlparse(start_url).netloc
     saved = {}  # remote_url -> local_path
+    saved_pages = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -125,6 +160,11 @@ def capture(start_url, out_dir, login_url, user_field, pass_field, username, pas
         if login_url:
             print(f"[info] opening login page: {login_url}")
             page.goto(login_url, wait_until="networkidle", timeout=30000)
+
+            # Capture the login page itself, before submitting credentials —
+            # this is a real page in the site (the login screen) and worth having.
+            saved_pages.append(save_rendered_page(page, out_dir, root_netloc, saved, "login"))
+
             print(f"[info] filling in credentials")
             page.fill(f'[name="{user_field}"]', username)
             page.fill(f'[name="{pass_field}"]', password)
@@ -136,37 +176,13 @@ def capture(start_url, out_dir, login_url, user_field, pass_field, username, pas
         page.goto(start_url, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(wait_ms)  # extra buffer for slow JS-rendered widgets
 
-        html = page.content()
-        final_url = page.url
-
-        screenshot_path = os.path.join(out_dir, root_netloc, "screenshot.png")
-        ensure_dir_for(screenshot_path)
-        page.screenshot(path=screenshot_path, full_page=True)
-        print(f"[info] saved screenshot: {screenshot_path}")
+        saved_pages.append(save_rendered_page(page, out_dir, root_netloc, saved, "page"))
 
         browser.close()
 
-    # Rewrite HTML to point at local copies
-    soup = BeautifulSoup(html, "html.parser")
-    page_local_path = os.path.join(out_dir, root_netloc, "page.html")
-
-    for tag, attr in (("link", "href"), ("script", "src"), ("img", "src"), ("source", "src")):
-        for el in soup.find_all(tag):
-            val = el.get(attr)
-            if not val or val.startswith("data:"):
-                continue
-            abs_url = urlparse.urljoin(final_url, val).split("#")[0]
-            if abs_url in saved:
-                el[attr] = rel_path(page_local_path, saved[abs_url])
-                if tag == "link":
-                    rewrite_css_urls(saved[abs_url], abs_url, saved, out_dir)
-
-    ensure_dir_for(page_local_path)
-    with open(page_local_path, "w", encoding="utf-8", errors="ignore") as f:
-        f.write(str(soup))
-
-    print(f"\nDone. Captured {len(saved)} asset files.")
-    print(f"Open this in a browser: {page_local_path}")
+    print(f"\nDone. Captured {len(saved_pages)} page(s) and {len(saved)} asset files.")
+    for p_path in saved_pages:
+        print(f"  {p_path}")
 
 
 def main():
