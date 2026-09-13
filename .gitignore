@@ -1,0 +1,8 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+scraped_site/
+captured_site/
+cookies.txt
+.env
